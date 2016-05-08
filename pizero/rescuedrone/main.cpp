@@ -27,6 +27,7 @@ using boost::asio::ip::tcp;
 /* private typedef ************************************************************/
 /* private define *************************************************************/
 
+#define EVER ;;
 #define PACKET_LENGTH_MAX 1024
 
 /* private macro **************************************************************/
@@ -41,6 +42,8 @@ using boost::asio::ip::tcp;
 */
 int main(int argc, char **argv)
 {
+    char packet;
+
     try {
         if(argc != 3) {
             std::cerr << "Usage: " << argv[0] << " <host> <port>" << std::endl;
@@ -56,18 +59,28 @@ int main(int argc, char **argv)
         tcp::socket s(io_service);
         boost::asio::connect(s, iterator);
 
-        std::cout << "Enter message: ";
-        char request[PACKET_LENGTH_MAX];
-        std::cin.getline(request, PACKET_LENGTH_MAX);
-        size_t request_length = std::strlen(request);
-        boost::asio::write(s, boost::asio::buffer(request, request_length));
+        for(EVER) {
+            packet = std::cin.get();
 
-        char reply[PACKET_LENGTH_MAX];
-        size_t reply_length = boost::asio::read(s, boost::asio::buffer(reply, request_length));
+            boost::asio::write(s, boost::asio::buffer(&packet, (size_t)1));
 
-        std::cout << "Reply is: ";
-        std::cout.write(reply, reply_length);
-        std::cout << std::endl;
+            boost::asio::read(s, boost::asio::buffer(&packet, (size_t)1));
+
+            std::cout << packet << std::endl;
+        }
+
+        // std::cout << "Enter message: ";
+        // char request[PACKET_LENGTH_MAX];
+        // std::cin.getline(request, PACKET_LENGTH_MAX);
+        // size_t request_length = std::strlen(request);
+        // boost::asio::write(s, boost::asio::buffer(request, request_length));
+
+        // char reply[PACKET_LENGTH_MAX];
+        // size_t reply_length = boost::asio::read(s, boost::asio::buffer(reply, request_length));
+
+        // std::cout << "Reply is: ";
+        // std::cout.write(reply, reply_length);
+        // std::cout << std::endl;
 
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;

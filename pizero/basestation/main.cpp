@@ -25,9 +25,6 @@
 using boost::asio::ip::tcp;
 
 /* private typedef ************************************************************/
-
-typedef boost::shared_ptr<tcp::socket> socket_ptr;
-
 /* private define *************************************************************/
 
 #define EVER ;;
@@ -39,7 +36,7 @@ const int max_length = 1024;
 
 /* private function prototypes ************************************************/
 
-void session(socket_ptr sock);
+void session(boost::shared_ptr<tcp::socket> sock);
 void server(boost::asio::io_service& io_service, unsigned short port);
 
 
@@ -66,7 +63,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void session(socket_ptr sock)
+void session(boost::shared_ptr<tcp::socket> sock)
 {
     try {
         for(EVER) {
@@ -94,7 +91,7 @@ void server(boost::asio::io_service& io_service, unsigned short port)
     tcp::acceptor a(io_service, tcp::endpoint(tcp::v4(), port));
 
     for(EVER) {
-        socket_ptr sock(new tcp::socket(io_service));
+        boost::shared_ptr<tcp::socket> sock(new tcp::socket(io_service));
 
         a.accept(*sock);
 
