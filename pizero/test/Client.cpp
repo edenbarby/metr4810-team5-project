@@ -61,7 +61,7 @@ int main(int argc, char * argv[]) {
             compression_params.push_back(jpegqual);
 
             imencode(".jpg", send, encoded, compression_params);
-            imshow("send", send);
+            // imshow("send", send);
             int total_pack = 1 + (encoded.size() - 1) / PACK_SIZE;
 
             int ibuf[1];
