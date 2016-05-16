@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_HPP
 #define MAINWINDOW_HPP
 
+#include "../../lib/ftd2xx.h"
 #include "opencv2/opencv.hpp"
 
 #include <QLabel>
