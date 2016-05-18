@@ -6,13 +6,18 @@ import serial
 import time
 from threading import Thread
 
-video_capture_device_id = 1
+video_capture_device_id = 0
 video_capture_device = None
 
 
 def thread_display():
     while(True):
         pass
+    # video_capture_device = cv2.VideoCapture(video_capture_device_id)
+
+    # while(True):
+    #     ret, frame = video_capture_device.read()
+    #     cv2.imshow('frame', frame)
 
 
 def thread_input_user():
@@ -28,9 +33,9 @@ def thread_serial(interval):
         time.sleep(interval)
 
 if __name__ == "__main__":
-    thread_display_obj    = Thread(target = thread_display)
-    thread_input_user_obj = Thread(target = thread_input_user)
-    thread_serial_obj     = Thread(target = thread_serial)
+    thread_display_obj    = Thread(target = thread_display, args = ())
+    thread_input_user_obj = Thread(target = thread_input_user, args = ())
+    thread_serial_obj     = Thread(target = thread_serial, args = (1, ))
 
     thread_display_obj.start();
     thread_input_user_obj.start();
@@ -38,24 +43,19 @@ if __name__ == "__main__":
 
     # serial_thread.join();
 
-    # font = cv2.FONT_HERSHEY_PLAIN
+    font = cv2.FONT_HERSHEY_PLAIN
     
-    # video_capture_device = cv2.VideoCapture(video_capture_device_id)
+    video_capture_device = cv2.VideoCapture(video_capture_device_id)
 
-    # while(True):
-    #     time_start = time.clock()
+    time_start = time.clock()
+    while(cv2.waitKey(1) != ord('q')):
+        ret, frame = video_capture_device.read()
+        
+        ms = (time.clock() - time_start)*1000
+        time_start = time.clock();
 
-    #     ret, frame = video_capture_device.read()
+        cv2.putText(frame, str(int(ms)), (10,30), font, 1, (255,255,255))
+        cv2.imshow('frame', frame)
 
-    #     time_stop = time.clock()
-    #     ms = (time_stop - time_start)*1000
-    #     cv2.putText(frame, str(int(ms)), (10,30), font, 1, (255,255,255))
-
-    #     cv2.imshow('frame', frame)
-
-    #     # print cv2.waitKey(1)
-    #     if cv2.waitKey(1) == ord('q'):
-    #         break
-
-    # cap.release()
-    # cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
