@@ -1,61 +1,65 @@
 #!/usr/bin/env python
 
+# Non-standard libraries.
 import cv2
 import numpy
 import serial
+
+# Standard libraries.
+import Queue
 import time
-from threading import Thread
-
-video_capture_device_id = 0
-video_capture_device = None
+import threading
 
 
-def thread_display():
-    while(True):
-        pass
-    # video_capture_device = cv2.VideoCapture(video_capture_device_id)
-
-    # while(True):
-    #     ret, frame = video_capture_device.read()
-    #     cv2.imshow('frame', frame)
+# Constants.
+CAMERA_ID = 0
 
 
-def thread_input_user():
-    while(True):
-        user_input= cv2.waitKey(1);
+def thread_image_capture(shutdown, frames, camera_id):
+    print "imgcap\tThread starting..."
 
-        if(user_input >= ord('a')):
-            print "User input: ", user_input, "\n"
+    camera = cv2.VideoCapture(camera_id)
+    t = time.clock()
 
-def thread_serial(interval):
-    while(True):
-        print str(interval), " sec"
-        time.sleep(interval)
+    while(not shutdown.is_set()):
+        success, frame = camera.read()
+
+        if success:
+            fps = 1 / (time.clock() - t)
+            t = time.clock()
+            cv2.putText(frame, str(int(fps)), (10,30), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+            frames.put_nowait(frame)
+
+    camera.release()
+
+    print "imgcap\tThread stopping..."
 
 if __name__ == "__main__":
-    thread_display_obj    = Thread(target = thread_display, args = ())
-    thread_input_user_obj = Thread(target = thread_input_user, args = ())
-    thread_serial_obj     = Thread(target = thread_serial, args = (1, ))
+    event_shutdown = threading.Event()
+    queue_frames = Queue.Queue()
 
-    thread_display_obj.start();
-    thread_input_user_obj.start();
-    thread_serial_obj.start();
+    thread_obj_image_capture = threading.Thread(target = thread_image_capture,
+                                                name   = "imgcap",
+                                                args   = (event_shutdown, queue_frames, CAMERA_ID))
 
-    # serial_thread.join();
-
-    font = cv2.FONT_HERSHEY_PLAIN
-    
-    video_capture_device = cv2.VideoCapture(video_capture_device_id)
+    thread_obj_image_capture.start()
 
     time_start = time.clock()
-    while(cv2.waitKey(1) != ord('q')):
-        ret, frame = video_capture_device.read()
-        
-        ms = (time.clock() - time_start)*1000
-        time_start = time.clock();
+    time_lasttrans = time.clock()
 
-        cv2.putText(frame, str(int(ms)), (10,30), font, 1, (255,255,255))
-        cv2.imshow('frame', frame)
+    while(not event_shutdown.is_set()):
+        if(not queue_frames.empty()):
+            frame = queue_frames.get();
+            cv2.imshow('frame', frame)
 
-    cap.release()
-    cv2.destroyAllWindows()
+        if((time.clock() - time_lasttrans) > 0.1):
+            print "main\tSerial send: "
+
+        user_input = cv2.waitKey(1)
+
+        if user_input == ord('q'):
+            event_shutdown.set();
+        elif
+
+    thread_obj_image_capture.join();
+    print "main\tImage Capture thread closed."
