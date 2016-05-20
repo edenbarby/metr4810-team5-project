@@ -14,11 +14,16 @@ import threading
 SERIAL_SEND_RATE   = 2 # (Hz)
 SERIAL_START_BYTE  = 0x7E
 SERIAL_STOP_BYTE   = 0x7F
-SERIAL_PORT_UBUNTU = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A703TYBJ-if00-port0"
 SERIAL_BAUD        = 9600
 SERIAL_BYTESIZE    = serial.EIGHTBITS
 SERIAL_PARITY      = serial.PARITY_NONE
 SERIAL_STOPBITS    = serial.STOPBITS_ONE
+
+# The serial port name for Eden's PC (Ubuntu)
+# SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A703TYBJ-if00-port0"
+# The serial port name for Eden's laptop
+# Possible just different FTDI chips
+SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AL0227SV-if00-port0"
 
 CAMERA_ID = 0
 
@@ -52,7 +57,7 @@ if __name__ == "__main__":
     servo_state = 100; # 0 - fully closed / 100 - fully open
 
     # Instantiate and open serial port.
-    serial_obj = serial.Serial(port     = SERIAL_PORT_UBUNTU,
+    serial_obj = serial.Serial(port     = SERIAL_PORT,
                                baudrate = SERIAL_BAUD,
                                bytesize = SERIAL_BYTESIZE,
                                parity   = SERIAL_PARITY,
@@ -83,7 +88,7 @@ if __name__ == "__main__":
 
         # If it's time to transmit another serial packet, assemble said pack and
         # and transmite it.
-        if((time.time() - time_lasttrans) > 1/SERIAL_SEND_RATE):
+        if((time.time() - time_lasttrans) > 0.5):
             time_lasttrans = time.time()
 
             packet = struct.pack("bbbbb", SERIAL_START_BYTE, motor_state_left,
