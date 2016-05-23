@@ -10,10 +10,19 @@ import time
 import threading
 
 
+TRACKBAR1_VALUE = 100;
+TRACKBAR2_VALUE = 0;
+TRACKBAR3_VALUE = 0;
+
+TRACKBAR1_VALUE_MAX = 100;
+TRACKBAR2_VALUE_MAX = 180;
+TRACKBAR3_VALUE_MAX = 200;
+
+
 # Constants.
 SERIAL_SEND_RATE   = 2 # (Hz)
-SERIAL_START_BYTE  = 0x7E
-SERIAL_STOP_BYTE   = 0x7F
+SERIAL_START_BYTE  = 0x12
+SERIAL_STOP_BYTE   = 0x21
 SERIAL_BAUD        = 9600
 SERIAL_BYTESIZE    = serial.EIGHTBITS
 SERIAL_PARITY      = serial.PARITY_NONE
@@ -23,9 +32,16 @@ SERIAL_STOPBITS    = serial.STOPBITS_ONE
 # SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A703TYBJ-if00-port0"
 # The serial port name for Eden's laptop
 # Possible just different FTDI chips
+# FTDI serial chip ID
 SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AL0227SV-if00-port0"
 
 CAMERA_ID = 0
+
+
+def trackbar_callback1(trackbar_value):
+    TRACKBAR1_VALUE = trackbar_value
+def trackbar_callback2(trackbar_value):
+    TRACKBAR2_VALUE = trackbar_value
 
 
 # Thread dedicated to capturing video frames. This ensures that the main thread
@@ -52,9 +68,9 @@ def thread_image_capture(shutdown, frames, camera_id):
 
 if __name__ == "__main__":
     # Setup default craft state.
-    motor_state_left = 0;
-    motor_state_right = 0;
-    servo_state = 100; # 0 - fully closed / 100 - fully open
+    motor_state_left = 100;
+    motor_state_right = 100;
+    servo_state = 0; # 0 - fully closed / 100 - fully open
 
     # Instantiate and open serial port.
     serial_obj = serial.Serial(port     = SERIAL_PORT,
@@ -63,6 +79,14 @@ if __name__ == "__main__":
                                parity   = SERIAL_PARITY,
                                stopbits = SERIAL_STOPBITS,
                                timeout  = 2)
+
+    # Setup time tracking variables.
+    time_start = time.time()
+    time_lasttrans = time.time()
+
+    cv2.namedWindow("Display")
+    cv2.createTrackbar("Motor Speed", "Display", TRACKBAR1_VALUE, TRACKBAR1_VALUE_MAX, trackbar_callback1);
+    cv2.createTrackbar("Servo Pos", "Display", TRACKBAR2_VALUE, TRACKBAR2_VALUE_MAX, trackbar_callback2);
 
     # Setup shutdown event and image frame queue for handling the image capture thread.
     event_shutdown = threading.Event()
@@ -75,34 +99,54 @@ if __name__ == "__main__":
 
     thread_obj_image_capture.start()
 
-    # Setup time tracking variables.
-    time_start = time.time()
-    time_lasttrans = time.time()
-
     # Main processing loop.
     while(not event_shutdown.is_set()):
         # If the image capture thread has added a frame to the queue, display it.
         if(not queue_frames.empty()):
             frame = queue_frames.get();
-            cv2.imshow('frame', frame)
+            cv2.imshow("Display", frame)
 
         # If it's time to transmit another serial packet, assemble said pack and
         # and transmite it.
         if((time.time() - time_lasttrans) > 0.5):
             time_lasttrans = time.time()
 
-            packet = struct.pack("bbbbb", SERIAL_START_BYTE, motor_state_left,
+            packet = struct.pack("BBBBB", SERIAL_START_BYTE, motor_state_left,
                                  motor_state_right, servo_state,
                                  SERIAL_STOP_BYTE)
 
+            # packet = struct.pack("BBBBB", SERIAL_STOP_BYTE, servo_state,
+            #                      motor_state_right, motor_state_left,
+            #                      SERIAL_START_BYTE)
+
             serial_obj.write(packet)
+
+            print "main\tPacket: ", motor_state_left, " ", motor_state_right, " ", servo_state
 
         # Get user input.
         user_input = (cv2.waitKey(1) & 0xFF)
 
         # Handle user input.
-        if (user_input >= ord('A')) and (user_input <= ord('z')):
-            print "main\tInput: ", user_input
+        if user_input == ord('w'):
+            # Forward
+            motor_state_left = 100 + TRACKBAR1_VALUE;
+            motor_state_right = 100 + TRACKBAR1_VALUE;
+        if user_input == ord('a'):
+            # Turn Left
+            motor_state_left = 100 - TRACKBAR1_VALUE;
+            motor_state_right = 100 + TRACKBAR1_VALUE;
+        if user_input == ord('s'):
+            # Backwards
+            motor_state_left = 100 - TRACKBAR1_VALUE;
+            motor_state_right = 100 - TRACKBAR1_VALUE;
+        if user_input == ord('d'):
+            # Turn Right
+            motor_state_left = 100 + TRACKBAR1_VALUE;
+            motor_state_right = 100 - TRACKBAR1_VALUE;
+        if user_input == ord(' '):
+            # Stop
+            motor_state_left = 100;
+            motor_state_right = 100;
         if user_input == ord('q'):
             event_shutdown.set();
 
