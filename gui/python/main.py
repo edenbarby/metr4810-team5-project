@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
         # If it's time to transmit another serial packet, assemble said pack and
         # and transmite it.
-        if((time.time() - time_lasttrans) > 0.5):
+        if((time.time() - time_lasttrans) > 0.1):
             time_lasttrans = time.time()
 
             packet = struct.pack("BBBBB", SERIAL_START_BYTE, motor_state_left,
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
             serial_obj.write(packet)
 
-            print "main\tPacket: ", motor_state_left, " ", motor_state_right, " ", servo_state
+            # print "main\tPacket: ", motor_state_left, " ", motor_state_right, " ", servo_state
 
         # Get user input.
         user_input = (cv2.waitKey(1) & 0xFF)
