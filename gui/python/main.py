@@ -7,6 +7,7 @@ import numpy
 import Queue
 import serial
 import struct
+import sys
 import time
 import threading
 
@@ -100,98 +101,103 @@ if __name__ == "__main__":
     # Flag used to signal another serial transmission.
     serial_packet_ready = 1
 
-    # Main processing loop.
-    while(not event_shutdown.is_set()):
-        # If the image capture thread has added a frame to the queue, display it.
-        if(not queue_frames.empty()):
-            frame = queue_frames.get()
-            cv2.imshow("Display", frame)
+    try:
+        # Main processing loop.
+        while(not event_shutdown.is_set()):
+            # If the image capture thread has added a frame to the queue, display it.
+            if(not queue_frames.empty()):
+                frame = queue_frames.get()
+                cv2.imshow("Display", frame)
 
-        # Get user input.
-        user_input = (cv2.waitKey(1) & 0xFF)
+            # Get user input.
+            user_input = (cv2.waitKey(1) & 0xFF)
 
-        # Handle user input.
-        if user_input == ord('w'):
-            # Forward
-            state_motor_left = 100 + cv2.getTrackbarPos("Speed", "Display")
-            state_motor_right = 100 + cv2.getTrackbarPos("Speed", "Display")
-            serial_packet_ready = 1
-        if user_input == ord('a'):
-            # Turn Left
-            state_motor_left = 100 - cv2.getTrackbarPos("Speed", "Display")
-            state_motor_right = 100 + cv2.getTrackbarPos("Speed", "Display")
-            serial_packet_ready = 1
-        if user_input == ord('s'):
-            # Backwards
-            state_motor_left = 100 - cv2.getTrackbarPos("Speed", "Display")
-            state_motor_right = 100 - cv2.getTrackbarPos("Speed", "Display")
-            serial_packet_ready = 1
-        if user_input == ord('d'):
-            # Turn Right
-            state_motor_left = 100 + cv2.getTrackbarPos("Speed", "Display")
-            state_motor_right = 100 - cv2.getTrackbarPos("Speed", "Display")
-            serial_packet_ready = 1
-        if user_input == ord('o'):
-            # Stop Motors
-            state_motor_left = 100;
-            state_motor_right = 100;
-            # Open Servo
-            state_servo_angle += STATE_SERVO_ANGLE_DELTA
+            # Handle user input.
+            if user_input == ord('w'):
+                # Forward
+                state_motor_left = 100 + cv2.getTrackbarPos("Speed", "Display")
+                state_motor_right = 100 + cv2.getTrackbarPos("Speed", "Display")
+                serial_packet_ready = 1
+            if user_input == ord('a'):
+                # Turn Left
+                state_motor_left = 100 - cv2.getTrackbarPos("Speed", "Display")
+                state_motor_right = 100 + cv2.getTrackbarPos("Speed", "Display")
+                serial_packet_ready = 1
+            if user_input == ord('s'):
+                # Backwards
+                state_motor_left = 100 - cv2.getTrackbarPos("Speed", "Display")
+                state_motor_right = 100 - cv2.getTrackbarPos("Speed", "Display")
+                serial_packet_ready = 1
+            if user_input == ord('d'):
+                # Turn Right
+                state_motor_left = 100 + cv2.getTrackbarPos("Speed", "Display")
+                state_motor_right = 100 - cv2.getTrackbarPos("Speed", "Display")
+                serial_packet_ready = 1
+            if user_input == ord('o'):
+                # Stop Motors
+                state_motor_left = 100;
+                state_motor_right = 100;
+                # Open Servo
+                state_servo_angle += STATE_SERVO_ANGLE_DELTA
 
-            if(state_servo_angle > STATE_SERVO_ANGLE_OPEN):
-                state_servo_angle = STATE_SERVO_ANGLE_OPEN
+                if(state_servo_angle > STATE_SERVO_ANGLE_OPEN):
+                    state_servo_angle = STATE_SERVO_ANGLE_OPEN
 
-            serial_packet_ready = 1
-        if user_input == ord('l'):
-            # Stop Motors
-            state_motor_left = 100;
-            state_motor_right = 100;
-            # Close Servo
-            state_servo_angle -= STATE_SERVO_ANGLE_DELTA
+                serial_packet_ready = 1
+            if user_input == ord('l'):
+                # Stop Motors
+                state_motor_left = 100;
+                state_motor_right = 100;
+                # Close Servo
+                state_servo_angle -= STATE_SERVO_ANGLE_DELTA
 
-            if(state_servo_angle < STATE_SERVO_ANGLE_CLOSED):
-                state_servo_angle = STATE_SERVO_ANGLE_CLOSED
+                if(state_servo_angle < STATE_SERVO_ANGLE_CLOSED):
+                    state_servo_angle = STATE_SERVO_ANGLE_CLOSED
 
-            serial_packet_ready = 1
-        if user_input == ord(' '):
-            # Stop
-            state_motor_left = 100
-            state_motor_right = 100
-            serial_packet_ready = 1
-        if user_input == ord('q'):
-            event_shutdown.set()
+                serial_packet_ready = 1
+            if user_input == ord(' '):
+                # Stop
+                state_motor_left = 100
+                state_motor_right = 100
+                serial_packet_ready = 1
+            if user_input == ord('q'):
+                event_shutdown.set()
 
-        # If it's time to transmit another serial packet, assemble said packet
-        # and transmit it.
-        if(serial_packet_ready):
-            serial_packet_ready = 0
+            if(serial_packet_ready):
+                serial_packet_ready = 0
 
-            cv2.setTrackbarPos("ServPos", "Display", state_servo_angle);
+                cv2.setTrackbarPos("ServPos", "Display", state_servo_angle);
 
-            packet = struct.pack("BBBBB", SERIAL_START_BYTE, state_motor_left,
-                                 state_motor_right, state_servo_angle,
-                                 SERIAL_STOP_BYTE)
+                # Construct the serial packet.
+                packet = struct.pack("BBBBB", SERIAL_START_BYTE, state_motor_left,
+                                     state_motor_right, state_servo_angle,
+                                     SERIAL_STOP_BYTE)
 
-            serial_obj.write(packet)
-            reply = serial_obj.read(1)
+                # Transmit the packet and wait for a reply.
+                serial_obj.write(packet)
+                reply = serial_obj.read(1)
 
-            if(len(reply) != 1):
-                print "Serial Error: No reply."
-                serial_errors.append(2)
-            elif reply[0] == "08".decode("hex"):
-                print "Serial Error: Packet error."
-                serial_errors.append(1)
-            elif reply[0] == "F8".decode("hex"):
-                serial_errors.append(0)
+                # Handle reply, keeping track of the errors.
+                if(len(reply) != 1):
+                    print "Serial Error: No reply."
+                    serial_errors.append(2)
+                elif reply[0] == "08".decode("hex"):
+                    print "Serial Error: Packet error."
+                    serial_errors.append(1)
+                elif reply[0] == "F8".decode("hex"):
+                    serial_errors.append(0)
 
-            lost = serial_errors.count(2)
-            error = serial_errors.count(1)
-            succeed = serial_errors.count(0)
-            total = lost + error + succeed
-            if(total > SERIAL_ERROR_HISTORY):
-                serial_errors.popleft()
-            cv2.setTrackbarPos("SerConn", "Display", (succeed * 100) / total);
-
+                # Display the errors.
+                lost = serial_errors.count(2)
+                error = serial_errors.count(1)
+                succeed = serial_errors.count(0)
+                total = lost + error + succeed
+                if(total > SERIAL_ERROR_HISTORY):
+                    serial_errors.popleft()
+                cv2.setTrackbarPos("SerConn", "Display", (succeed * 100) / total);
+    except:
+        print "Unexpected error: ", sys.exc_info()[0]
+        event_shutdown.set()
     # Wait for the image capture thread to end.
     thread_obj_image_capture.join();
     print "main\tImage Capture thread closed."
