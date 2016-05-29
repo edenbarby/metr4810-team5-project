@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from collections import deque
 import ctypes
 import cv2
 import numpy
@@ -20,13 +21,12 @@ SERIAL_BYTESIZE   = serial.EIGHTBITS
 SERIAL_PARITY     = serial.PARITY_NONE
 SERIAL_STOPBITS   = serial.STOPBITS_ONE
 SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AL0227SV-if00-port0"
+SERIAL_ERROR_HISTORY = 30
 
 # Servo angle constants.
-OPENED = 90
-CLOSED = 10
 STATE_SERVO_ANGLE_DELTA  = 5
-STATE_SERVO_ANGLE_OPEN   = 100
-STATE_SERVO_ANGLE_CLOSED = 0
+STATE_SERVO_ANGLE_OPEN   = 90
+STATE_SERVO_ANGLE_CLOSED = 15
 
 # Trackbar constants.
 TRACKBAR_DEFAULT_SPEED = 90
@@ -68,19 +68,23 @@ if __name__ == "__main__":
     # Setup default craft state.
     state_motor_left = 100;
     state_motor_right = 100;
-    state_servo_angle = 50;
+    state_servo_angle = STATE_SERVO_ANGLE_OPEN;
 
     # Instantiate and open serial port.
+    serial_errors = deque([])
+
     serial_obj = serial.Serial(port     = SERIAL_PORT,
                                baudrate = SERIAL_BAUD,
                                bytesize = SERIAL_BYTESIZE,
                                parity   = SERIAL_PARITY,
                                stopbits = SERIAL_STOPBITS,
-                               timeout  = 2)
+                               timeout  = 0.5)
 
     # Setup the trackbar that controls speed.
     cv2.namedWindow("Display")
     cv2.createTrackbar("Speed", "Display", TRACKBAR_DEFAULT_SPEED, TRACKBAR_MAX_SPEED, foo);
+    cv2.createTrackbar("ServPos", "Display", 0, 100, foo);
+    cv2.createTrackbar("SerConn", "Display", 0, 100, foo);
 
     # Setup shutdown event and image frame queue for handling the image capture thread.
     event_shutdown = threading.Event()
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     thread_obj_image_capture.start()
 
     # Flag used to signal another serial transmission.
-    serial_packet_ready = 0
+    serial_packet_ready = 1
 
     # Main processing loop.
     while(not event_shutdown.is_set()):
@@ -137,9 +141,6 @@ if __name__ == "__main__":
             if(state_servo_angle > STATE_SERVO_ANGLE_OPEN):
                 state_servo_angle = STATE_SERVO_ANGLE_OPEN
 
-            if(state_servo_angle >= OPENED):
-                print "Servo is comfortably open brah."
-
             serial_packet_ready = 1
         if user_input == ord('l'):
             # Stop Motors
@@ -151,9 +152,6 @@ if __name__ == "__main__":
             if(state_servo_angle < STATE_SERVO_ANGLE_CLOSED):
                 state_servo_angle = STATE_SERVO_ANGLE_CLOSED
 
-            if(state_servo_angle <= CLOSED):
-                print "Servo is comfortably closed brah."
-
             serial_packet_ready = 1
         if user_input == ord(' '):
             # Stop
@@ -163,19 +161,36 @@ if __name__ == "__main__":
         if user_input == ord('q'):
             event_shutdown.set()
 
-        # If it's time to transmit another serial packet, assemble said pack and
-        # and transmite it.
+        # If it's time to transmit another serial packet, assemble said packet
+        # and transmit it.
         if(serial_packet_ready):
             serial_packet_ready = 0
+
+            cv2.setTrackbarPos("ServPos", "Display", state_servo_angle);
 
             packet = struct.pack("BBBBB", SERIAL_START_BYTE, state_motor_left,
                                  state_motor_right, state_servo_angle,
                                  SERIAL_STOP_BYTE)
 
             serial_obj.write(packet)
-            # serial_obj.read(packet)
+            reply = serial_obj.read(1)
 
-            print "main\tPacket: ", state_motor_left, " ", state_motor_right, " ", state_servo_angle
+            if(len(reply) != 1):
+                print "Serial Error: No reply."
+                serial_errors.append(2)
+            elif reply[0] == "08".decode("hex"):
+                print "Serial Error: Packet error."
+                serial_errors.append(1)
+            elif reply[0] == "F8".decode("hex"):
+                serial_errors.append(0)
+
+            lost = serial_errors.count(2)
+            error = serial_errors.count(1)
+            succeed = serial_errors.count(0)
+            total = lost + error + succeed
+            if(total > SERIAL_ERROR_HISTORY):
+                serial_errors.popleft()
+            cv2.setTrackbarPos("SerConn", "Display", (succeed * 100) / total);
 
     # Wait for the image capture thread to end.
     thread_obj_image_capture.join();
