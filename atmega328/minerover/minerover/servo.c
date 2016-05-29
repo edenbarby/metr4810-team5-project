@@ -1,8 +1,16 @@
-/* Notes:
-**  Servo 1 signal line is connected to PORTB2 and timer 1B
-**  Servo 2 signal line is connected to PORTB1 and timer 1A
-**
+/*
+*******************************************************************************
+** @file  servo.c
+** @brief ATmega328 SG90 9 gram servo driver. Servo line 1 is controlled with
+**        timer 1B and line 2 with timer 1A.
+*******************************************************************************
+** external functions
+*******************************************************************************
+** servo_init       Initialises the servo driver.
+** servo_claw_angle Sets the servo angle.
+*******************************************************************************
 */
+
 
 /* includes ******************************************************************/
 
@@ -11,19 +19,18 @@
 /* private typedef ***********************************************************/
 /* private define ************************************************************/
 
-#define SERVO1_EN
-//#define SERVO2_EN
-
 #define TIMER1_PRESCALER (8)
-#define TIMER1_TICK      (F_CPU / TIMER1_PRESCALER)
+#define TIMER1_TICK      (F_CPU / (2 * TIMER1_PRESCALER))
 #define TIMER1_OVERFLOW  (50)
 
-#define SERVO_TOP (TIMER1_TICK / TIMER1_OVERFLOW - 1)
-#define SERVO_MAX (SERVO_TOP / 10)
-#define SERVO_MIN (SERVO_TOP / 20)
+// SERVO_TOP defines the desired PWM period register value.
+#define SERVO_TOP     (TIMER1_TICK / TIMER1_OVERFLOW - 1)
+// SERVO_MAX and SERVO_MIN define the maximum and minimum compare register
+// values.
+#define SERVO_MAX     (SERVO_TOP / 10)
+#define SERVO_MIN     (SERVO_TOP / 20)
+#define SERVO_RANGE   (SERVO_MAX - SERVO_MIN)
 #define SERVO_DEFAULT ((SERVO_MAX + SERVO_MIN) / 2)
-#define SERVO_OPEN
-#define SERVO_CLOSE
 
 /* private macro *************************************************************/
 /* private variables *********************************************************/
@@ -38,6 +45,11 @@ static void servo_two_angle(uint8_t angle);
 #endif // SERVO2_EN
 
 
+/*
+** @brief  Initialises the servo driver.
+** @param  none
+** @retval none
+*/
 extern void servo_init(void)
 {
     ICR1 = SERVO_TOP;
@@ -73,9 +85,14 @@ extern void servo_init(void)
     TCCR1B |= (0 << CS12) | (1 << CS11) | (0 << CS10);
 }
 
+/*
+** @brief  Sets the servo angle.
+** @param  angle The desired servo angle as a number from 0 to 100.
+** @retval none
+*/
 extern void servo_claw_angle(uint8_t angle)
 {
-    if(angle > 180) angle = 180;
+    if(angle > 100) angle = 100;
 
 #ifdef SERVO1_EN
     servo_one_angle(angle);
@@ -88,15 +105,25 @@ extern void servo_claw_angle(uint8_t angle)
 
 
 #ifdef SERVO1_EN
+/*
+** @brief  Sets servo 1 angle.
+** @param  angle The desired servo angle as a number from 0 to 100.
+** @retval none
+*/
 static void servo_one_angle(uint8_t angle)
 {
-    OCR1B = (uint16_t)((SERVO_MAX - SERVO_MIN) * angle / 180 + SERVO_MIN);
+    OCR1B = (uint16_t)(((SERVO_MAX - SERVO_MIN) * angle) / 100 + SERVO_MIN);
 }
 #endif // SERVO1_EN
 
 #ifdef SERVO2_EN
+/*
+** @brief  Sets servo 2 angle.
+** @param  angle The desired servo angle as a number from 0 to 100.
+** @retval none
+*/
 static void servo_two_angle(uint8_t angle)
 {
-    OCR1A = (uint16_t)((SERVO_MAX - SERVO_MIN) * angle / 180 + SERVO_MIN);
+    OCR1A = (uint16_t)(((SERVO_MAX - SERVO_MIN) * angle) / 100 + SERVO_MIN);
 }
 #endif // SERVO2_EN

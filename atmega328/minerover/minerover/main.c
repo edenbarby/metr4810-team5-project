@@ -1,3 +1,11 @@
+/*
+*******************************************************************************
+** @file  main.c
+** @brief METR4810 mine rescue system project. Programmed for the ATmega328.
+*******************************************************************************
+*/
+
+
 /* includes ******************************************************************/
 
 #include "config.h"
@@ -9,9 +17,12 @@
 /* private typedef ***********************************************************/
 /* private define ************************************************************/
 
-#define START_BYTE 0x12
-#define STOP_BYTE 0x21
+#define START 0x12
+#define STOP 0x89
 #define ACK 0xF8
+#define NACK 0x08
+
+#define SERIAL_TIMEOUT 100 // (ms)
 
 /* private macro *************************************************************/
 /* private variables *********************************************************/
@@ -20,9 +31,12 @@
 
 int main(void)
 {
+    DDRB |= (1 << PORTB2);
+    
     uint8_t i;
     int8_t speed;
-    int8_t input[5];
+    uint8_t input[5];
+    float time_packet_last;
 
     motor_init();
     servo_init();
@@ -31,31 +45,45 @@ int main(void)
 
     sei();
 
+    time_packet_last = time_ms();
     for(EVER) {
-        // The serial packet will consist of a START byte, a value for the
-        // left, right motor and servo and a STOP byte. The motor values will
-        // be centered on 100 (i.e. a value of 100 is a motor speed of 0 with 0
-        // direction). The servo angles will go from 0 to 180.
-        input[0] = uart_getc();
-        
-        if(input[0] == START_BYTE) {
-            for(i = 1; i < 5; i++) input[i] = uart_getc();
+        // The serial packet will consists of 5 unsigned bytes as per the
+        // following:
+        // [START, left motor, right motor, servo angle, STOP]
+        // Left motor and right motor will be speed values ranging from -100 to
+        // 100 centered around 100 (i.e. 0 - 200). The servo angle will be a
+        // a value from 0 to 100. 0 is the servo fully open and 100 is the
+        // servo fully closed.
+        if(uart_input_available()) {
+            input[0] = uart_getc();
 
-            if(input[4] == STOP_BYTE) {
-                speed = input[1] - 100;
-                if(speed > 0) motor_left(speed, 1);
-                else if(speed == 0) motor_left(0, 0);
-                else if(speed < 0) motor_left(-speed, -1);
+            if(input[0] == START) {
+                for(i = 1; i < 5; i++) input[i] = uart_getc();
+
+                if(input[4] == STOP) {
+                    speed = input[1] - 100;
+                    if(speed > 0) motor_left(speed, 1);
+                    else if(speed == 0) motor_left(0, 0);
+                    else if(speed < 0) motor_left(-speed, -1);
                 
-                speed = input[2] - 100;
-                if(speed > 0) motor_right(speed, 1);
-                else if(speed == 0) motor_right(0, 0);
-                else if(speed < 0) motor_right(-speed, -1);
+                    speed = input[2] - 100;
+                    if(speed > 0) motor_right(speed, 1);
+                    else if(speed == 0) motor_right(0, 0);
+                    else if(speed < 0) motor_right(-speed, -1);
                 
-                servo_claw_angle(input[3]);
+                    servo_claw_angle(input[3]);
                 
-                uart_putc(ACK);
+                    time_packet_last = time_ms();
+                    uart_putc(ACK);
+                } else {
+                    uart_putc(NACK);
+                }
             }
+        }
+        
+        if(time_ms() - time_packet_last > SERIAL_TIMEOUT) {
+            motor_left(0, 0);
+            motor_right(0, 0);
         }
     }
 }

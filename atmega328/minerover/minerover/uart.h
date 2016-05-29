@@ -1,3 +1,23 @@
+/*
+********************************************************************************
+** @file  uart.c
+** @brief Provides UART functionality. Uses buffers to store incomming and
+**        outgoing characters and interrupts to handle the transmission and
+**        reception of data.
+********************************************************************************
+** external functions
+********************************************************************************
+** uart_init            Initialises the UART driver.
+** uart_input_available Returns the number of bytes in the input buffer.
+** uart_putc            Adds a character to the internal buffer for
+**                      transmission. Will not insert the character if the
+**                      buffer is full.
+** uart_getc            Returns the next character from the input buffer. Will
+**                      block if the buffer is empty.
+********************************************************************************
+*/
+
+
 #ifndef UART_H
 #define UART_H
 
@@ -10,9 +30,6 @@
 /* external define ***********************************************************/
 /* external macro ************************************************************/
 /* external variables ********************************************************/
-
-extern FILE uart;
-
 /* external function prototypes **********************************************/
 
 extern void uart_init(void);

@@ -14,7 +14,7 @@ import threading
 CAMERA_ID = 1
 
 SERIAL_START_BYTE = 0x12
-SERIAL_STOP_BYTE  = 0x21
+SERIAL_STOP_BYTE  = 0x89
 SERIAL_BAUD       = 9600
 SERIAL_BYTESIZE   = serial.EIGHTBITS
 SERIAL_PARITY     = serial.PARITY_NONE
@@ -22,12 +22,14 @@ SERIAL_STOPBITS   = serial.STOPBITS_ONE
 SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AL0227SV-if00-port0"
 
 # Servo angle constants.
+OPENED = 90
+CLOSED = 10
 STATE_SERVO_ANGLE_DELTA  = 5
-STATE_SERVO_ANGLE_OPEN   = 10
-STATE_SERVO_ANGLE_CLOSED = 90
+STATE_SERVO_ANGLE_OPEN   = 100
+STATE_SERVO_ANGLE_CLOSED = 0
 
 # Trackbar constants.
-TRACKBAR_DEFAULT_SPEED = 80
+TRACKBAR_DEFAULT_SPEED = 90
 TRACKBAR_MAX_SPEED     = 100
 
 def foo(a):
@@ -45,9 +47,16 @@ def thread_image_capture(shutdown, frames, camera_id):
         success, frame = camera.read()
 
         if success:
+            # Rotate the image.
+            rows, cols, chans = frame.shape
+            rot = cv2.getRotationMatrix2D((cols/2, rows/2), 180, 1)
+            frame = cv2.warpAffine(frame, rot, (cols, rows));
+
+            # Display the frames per secods.
             fps = 1 / (time.time() - t)
             t = time.time()
             cv2.putText(frame, str(int(fps)), (10,30), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+
             frames.put_nowait(frame)
 
     camera.release()
@@ -59,15 +68,15 @@ if __name__ == "__main__":
     # Setup default craft state.
     state_motor_left = 100;
     state_motor_right = 100;
-    state_servo_angle = STATE_SERVO_ANGLE_OPEN;
+    state_servo_angle = 50;
 
     # Instantiate and open serial port.
-    # serial_obj = serial.Serial(port     = SERIAL_PORT,
-    #                            baudrate = SERIAL_BAUD,
-    #                            bytesize = SERIAL_BYTESIZE,
-    #                            parity   = SERIAL_PARITY,
-    #                            stopbits = SERIAL_STOPBITS,
-    #                            timeout  = 2)
+    serial_obj = serial.Serial(port     = SERIAL_PORT,
+                               baudrate = SERIAL_BAUD,
+                               bytesize = SERIAL_BYTESIZE,
+                               parity   = SERIAL_PARITY,
+                               stopbits = SERIAL_STOPBITS,
+                               timeout  = 2)
 
     # Setup the trackbar that controls speed.
     cv2.namedWindow("Display")
@@ -78,11 +87,11 @@ if __name__ == "__main__":
     queue_frames = Queue.Queue()
 
     # Instantiate and start the image capture thread.
-    # thread_obj_image_capture = threading.Thread(target = thread_image_capture,
-    #                                             name   = "imgcap",
-    #                                             args   = (event_shutdown, queue_frames, CAMERA_ID))
+    thread_obj_image_capture = threading.Thread(target = thread_image_capture,
+                                                name   = "imgcap",
+                                                args   = (event_shutdown, queue_frames, CAMERA_ID))
 
-    # thread_obj_image_capture.start()
+    thread_obj_image_capture.start()
 
     # Flag used to signal another serial transmission.
     serial_packet_ready = 0
@@ -119,19 +128,31 @@ if __name__ == "__main__":
             state_motor_right = 100 - cv2.getTrackbarPos("Speed", "Display")
             serial_packet_ready = 1
         if user_input == ord('o'):
+            # Stop Motors
+            state_motor_left = 100;
+            state_motor_right = 100;
             # Open Servo
-            state_servo_angle -= STATE_SERVO_ANGLE_DELTA
+            state_servo_angle += STATE_SERVO_ANGLE_DELTA
 
-            if(state_servo_angle < STATE_SERVO_ANGLE_OPEN):
+            if(state_servo_angle > STATE_SERVO_ANGLE_OPEN):
                 state_servo_angle = STATE_SERVO_ANGLE_OPEN
+
+            if(state_servo_angle >= OPENED):
+                print "Servo is comfortably open brah."
 
             serial_packet_ready = 1
         if user_input == ord('l'):
+            # Stop Motors
+            state_motor_left = 100;
+            state_motor_right = 100;
             # Close Servo
-            state_servo_angle += STATE_SERVO_ANGLE_DELTA
+            state_servo_angle -= STATE_SERVO_ANGLE_DELTA
 
-            if(state_servo_angle > STATE_SERVO_ANGLE_CLOSED):
+            if(state_servo_angle < STATE_SERVO_ANGLE_CLOSED):
                 state_servo_angle = STATE_SERVO_ANGLE_CLOSED
+
+            if(state_servo_angle <= CLOSED):
+                print "Servo is comfortably closed brah."
 
             serial_packet_ready = 1
         if user_input == ord(' '):
@@ -151,7 +172,8 @@ if __name__ == "__main__":
                                  state_motor_right, state_servo_angle,
                                  SERIAL_STOP_BYTE)
 
-            # serial_obj.write(packet)
+            serial_obj.write(packet)
+            # serial_obj.read(packet)
 
             print "main\tPacket: ", state_motor_left, " ", state_motor_right, " ", state_servo_angle
 
